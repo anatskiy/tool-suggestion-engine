@@ -6,3 +6,5 @@ This extension of galaxy will provide suggestion of tools to use after the ones 
 
 The suggestion will be made making use of the available workflows of the server.
 
+
+
