@@ -1,50 +1,44 @@
-
 # coding: utf-8
 
-# In[1]:
-
 import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-from pandas.io import sql
 import sqlite3
+import re
 
+base_directory = "/home/u/abc/galaxy/"
 
-# In[3]:
+with open(base_directory + './config/galaxy.ini') as file:
+    # default
+    db_path = 'database/universe.sqlite'
 
-try:
-    conn = sqlite3.connect('/home/u/abc/galaxy/database/universe.sqlite')
-except:
-    print """please enter where database is located.
-    Hint: locate database/universe.sqlite returns:"""
-    get_ipython().system(u'locate database/universe.sqlite')
+    # if different value in config file
+    for line in file:
+        if re.match('^database_connection\ =.*', line):
+            db_path = re.sub('database_connection\ = sqlite:///./', '', line)
+            # without the index the string finishes with a space
+            db_path = re.sub('\?.*', '', db_path)[:-1]
 
-
-# In[13]:
+# connect to database -> will change to ORM/SQLalchemy
+conn = sqlite3.connect(base_directory + db_path)
 
 query = '''
-    SELECT job.tool_id, job.id, job_metric_numeric.job_id, metric_value AS runtime_seconds
-    FROM job_metric_numeric INNER JOIN job
+    SELECT job.tool_id, metric_value AS runtime_seconds, galaxy_user.username
+    FROM job_metric_numeric INNER JOIN job INNER JOIN galaxy_user
     WHERE metric_name=\'runtime_seconds\' AND job.id=job_metric_numeric.job_id
 '''
-tools_runtime = sql.read_sql(query,con=conn)
 
+tools_runtime = pd.read_sql(query, con=conn)
 
-# In[14]:
+df = pd.DataFrame(tools_runtime,
+                  columns=['tool_id', 'runtime_seconds', 'username'])
 
-runtime_dict = {}
-for index, tool in enumerate(tools_runtime['tool_id']):
-    try:
-        runtime_dict[str(tool)]
-    except:
-        runtime_dict[tool] = []
-    runtime_dict[tool].append(tools_runtime.runtime_seconds[index])
+# convert entries in unicode to string (required by HDF)
+types = df.apply(lambda x: pd.lib.infer_dtype(x.values))
+for col in types[types == 'unicode'].index:
+    df[col] = df[col].astype(str)
+df.columns = [str(c) for c in df.columns]
 
-
-# In[15]:
-
-for tool in runtime_dict.keys():
-    plt.plot(range(0, len(runtime_dict[tool])), runtime_dict[tool], label=tool)
-    plt.savefig(tool + '-runtime.png')
-    plt.close()
+tools_dataset_list = []
+hdf = pd.HDFStore('runtime_by_tool.hdf5')
+hdf.append('hdf', df)
+hdf.close()
 
