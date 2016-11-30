@@ -12,9 +12,9 @@ The suggestion will be made making use of the available workflows of the server.
 ### Dependencies
 
 - pandas
-- sqlite3
+- tables (dependency of pandas)
+- sqlalchemy
 - bioblend
-- re (temporary)
 
 >sudo pip install pandas sqlite3 re
 
