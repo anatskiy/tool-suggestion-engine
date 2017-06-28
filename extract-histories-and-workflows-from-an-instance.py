@@ -1,69 +1,57 @@
-
-# coding: utf-8
-
-# In[1]:
-
-
-
-
-# In[7]:
-
-import pandas as pd
-import sqlite3
+import os
 import re
+from configparser import ConfigParser, NoOptionError
+
+from sqlalchemy import create_engine
+import pandas as pd
 
 
-# In[2]:
+def main():
+    galaxy_path = os.environ['GALAXY_DIRECTORY']
+    config_file = os.path.join(galaxy_path, 'config/galaxy.ini.sample')
 
-cd ../galaxy
+    if os.path.isfile(config_file):
+        config = ConfigParser()
+        config.read_file(open(config_file))
 
+        try:
+            # Get database path
+            db_conn = config.get('app:main', 'database_connection')
+            match = re.match(r'(.+:\/{2,3})(.+)\?', db_conn)
+            protocol = match[1]
+            file = os.path.join(galaxy_path, match[2])
+            db_path = protocol + file if os.path.isfile(file) else db_conn
 
-# In[3]:
+        except NoOptionError:
+            # Default
+            db_path = 'sqlite:///' + os.path.join(galaxy_path,
+                                                  'database/universe.sqlite')
 
-with open('./config/galaxy.ini') as file:
-    # default
-    db_path = 'database/universe.sqlite'
+        # Connect to DB
+        engine = create_engine(db_path)
 
-    # if different value in config file
-    for line in file:
-        if re.match('^database_connection\ =.*', line):
-            db_path = re.sub('database_connection\ = sqlite:///./', '', line)
-            # without the index the string finishes with a space
-            db_path = re.sub('\?.*', '', db_path)[:-1]
+        history_query = """
+        SELECT * FROM history
+        """
 
+        workflows_steps_query = """
+        SELECT * FROM workflow_step
+        """
 
-# In[4]:
+        workflows_steps_connections_query = """
+        SELECT * FROM workflow_step_connection
+        """
 
-conn = sqlite3.connect(db_path)
+        histories = pd.read_sql(history_query, con=engine)
+        w_steps = pd.read_sql(workflows_steps_query, con=engine)
+        w_steps_connections = pd.read_sql(workflows_steps_connections_query,
+                                          con=engine)
 
-
-# In[5]:
-
-download_history_query = """
-SELECT * FROM history
-"""
-
-download_workflows_steps_query = """
-SELECT * FROM workflow_steps
-"""
-
-download_workflows_steps_connections_query = """
-SELECT * workflow_steps_connections
-"""
-
-histo = pd.read_sql(download_history_query, con=conn)
-w_steps = pd.read_sql(download_workflows_steps_query, con=conn)
-w_steps_connexions = pd.read_sql(download_workflows_steps_connections_query, con=conn)
-
-
-# In[6]:
-
-histo.to_csv('histories.csv')
-w_steps.to_csv('workflow_steps.csv')
-w_steps_connexions.to_csv('workflow_steps_connexions.csv')
+        # Create CSV files
+        histories.to_csv('histories.csv')
+        w_steps.to_csv('workflow_steps.csv')
+        w_steps_connections.to_csv('workflow_steps_connections.csv')
 
 
-# In[ ]:
-
-
-
+if __name__ == '__main__':
+    main()

@@ -1,3 +1,7 @@
-tables
+bioblend
+jupyter
+numpy
 pandas
+psycopg2
 sqlalchemy
+tables
