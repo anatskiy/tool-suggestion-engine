@@ -5,3 +5,6 @@ pandas
 psycopg2
 sqlalchemy
 tables
+sklearn
+scipy
+networkx
